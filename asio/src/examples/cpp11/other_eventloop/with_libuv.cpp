@@ -2,8 +2,7 @@
 #include <iostream>
 #include <uv.h>
 
-//#define USE_LOG
-#ifdef USE_LOG
+#if __has_include("log.h")
 #include "log.h"
 #else
 #define LOG printf
@@ -13,6 +12,7 @@ int main() {
   uv_loop_t *loop = uv_default_loop();
   static asio::io_context io_context;
   asio::io_context::work work(io_context);
+  LOG("main thread\n");
 
   uv_timer_t timer_req;
   uv_timer_init(loop, &timer_req);
@@ -33,6 +33,7 @@ int main() {
 
   static std::condition_variable async_done;
   std::mutex async_done_lock;
+
   uv_async_t async;
   uv_async_init(loop, &async, [](uv_async_t *handle) {
     io_context.poll_one();
@@ -41,10 +42,9 @@ int main() {
 
   std::thread([&] {
     for (;;) {
-      LOG("wait_event...");
-      asio::error_code ec;
-      auto &service = asio::use_service<asio::detail::scheduler>(io_context);
-      service.wait_event(INTMAX_MAX, ec);
+      LOG("wait_event...\n");
+      io_context.wait_one_for(std::chrono::minutes(1));
+
       uv_async_send(&async);
       std::unique_lock<std::mutex> lock(async_done_lock);
       async_done.wait(lock);
